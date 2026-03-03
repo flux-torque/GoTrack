@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* Base resets for GoTrack */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  background-color: #f9fafb; /* bg-gray-50 */
+  color: #111827; /* text-gray-900 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

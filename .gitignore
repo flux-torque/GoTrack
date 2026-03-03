@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+gt-gotrack/node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Env files
+*.local
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Bank statement PDFs — never commit real financial data
+samples/**/*.pdf
+
+# Claude internal files (AI assistant config)
+.claude/
