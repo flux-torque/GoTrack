@@ -106,72 +106,58 @@ export function PeriodSummaryCard({ summary, currentPeriod }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100">
 
-      {/* ── Row 1: Main metrics ── */}
-      <div className="grid grid-cols-5 gap-2 px-4 py-4">
-        <MetricBox
-          label="Opening"
-          value={`${APP_CONFIG.CURRENCY_SYMBOL}${fmt(openingBalance)}`}
-          valueClass="text-indigo-700"
-        />
-        <MetricBox
-          label="Cash Inflow"
-          value={`${APP_CONFIG.CURRENCY_SYMBOL}${fmt(income)}`}
-          valueClass="text-emerald-600"
-        />
-        <MetricBox
-          label="Expenses"
-          value={`${APP_CONFIG.CURRENCY_SYMBOL}${fmt(expense)}`}
-          valueClass="text-rose-600"
-          sub={
-            expenseTrend !== 0 ? (
-              <span className={cn('text-[10px] font-semibold flex items-center gap-0.5', trendColor)}>
-                <TrendIcon size={10} /> {trendLabel}
-              </span>
-            ) : null
-          }
-        />
-        <MetricBox
-          label="Net Flow"
-          value={`${netPositive ? '+' : ''}${APP_CONFIG.CURRENCY_SYMBOL}${fmt(netFlow)}`}
-          valueClass={netPositive ? 'text-emerald-600' : 'text-rose-600'}
-        />
-        <MetricBox
-          label="Closing"
-          value={`${APP_CONFIG.CURRENCY_SYMBOL}${fmt(closingBalance)}`}
-          valueClass="text-indigo-700"
-        />
+      {/* ── Row 1: Main metrics — scrollable on mobile ── */}
+      <div className="overflow-x-auto">
+        <div className="flex items-start divide-x divide-gray-100 min-w-[420px] sm:min-w-0 sm:grid sm:grid-cols-5 px-0">
+          {[
+            { label: 'Opening',     value: `${APP_CONFIG.CURRENCY_SYMBOL}${fmt(openingBalance)}`, cls: 'text-indigo-700' },
+            { label: 'Cash Inflow', value: `${APP_CONFIG.CURRENCY_SYMBOL}${fmt(income)}`,         cls: 'text-emerald-600' },
+            { label: 'Expenses',    value: `${APP_CONFIG.CURRENCY_SYMBOL}${fmt(expense)}`,        cls: 'text-rose-600',    sub: expenseTrend !== 0 },
+            { label: 'Net Flow',    value: `${netPositive ? '+' : ''}${APP_CONFIG.CURRENCY_SYMBOL}${fmt(netFlow)}`, cls: netPositive ? 'text-emerald-600' : 'text-rose-600' },
+            { label: 'Closing',     value: `${APP_CONFIG.CURRENCY_SYMBOL}${fmt(closingBalance)}`, cls: 'text-indigo-700' },
+          ].map(({ label, value, cls, sub }) => (
+            <div key={label} className="flex-1 flex flex-col items-center gap-0.5 px-3 py-4 min-w-0">
+              <p className={cn('text-sm font-bold truncate', cls)}>{value}</p>
+              {sub && (
+                <div className="flex items-center gap-0.5">
+                  <span className={cn('text-[10px] font-semibold flex items-center gap-0.5', trendColor)}>
+                    <TrendIcon size={10} /> {trendLabel}
+                  </span>
+                </div>
+              )}
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide leading-none mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* ── Row 2: Smart indicators ── */}
-      <div className="flex flex-wrap items-center justify-around gap-3 px-4 py-3">
-        {/* Savings Rate */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm">💰</span>
-          <span className="text-xs text-gray-500">Savings Rate:</span>
+      {/* ── Row 2: Smart indicators — 3-col grid ── */}
+      <div className="grid grid-cols-3 divide-x divide-gray-100">
+        <div className="flex flex-col items-center gap-1 px-2 py-3">
+          <span className="text-base leading-none">💰</span>
           <span className={cn(
             'text-xs font-bold px-1.5 py-0.5 rounded-full',
             savingsRate >= 20 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-600 bg-rose-50'
           )}>
             {savingsRate}%
           </span>
+          <span className="text-[10px] text-gray-400 leading-none">Savings</span>
         </div>
 
-        {/* Avg Daily Spend */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm">📊</span>
-          <span className="text-xs text-gray-500">Avg Daily:</span>
+        <div className="flex flex-col items-center gap-1 px-2 py-3">
+          <span className="text-base leading-none">📊</span>
           <span className="text-xs font-bold text-gray-700">
             {APP_CONFIG.CURRENCY_SYMBOL}{fmt(avgDailySpend)}
           </span>
+          <span className="text-[10px] text-gray-400 leading-none">Avg Daily</span>
         </div>
 
-        {/* Cash Flow Score */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm">🎯</span>
-          <span className="text-xs text-gray-500">Score:</span>
+        <div className="flex flex-col items-center gap-1 px-2 py-3">
+          <span className="text-base leading-none">🎯</span>
           <span className={cn('text-xs font-bold px-1.5 py-0.5 rounded-full', sc.bg, sc.text)}>
             {cashFlowScore}/100
           </span>
+          <span className="text-[10px] text-gray-400 leading-none">Score</span>
         </div>
       </div>
 

@@ -102,7 +102,7 @@ function ProfileDropdown({ user, token, onLogout, onClose }) {
   return (
     <div className="absolute right-0 top-full mt-2 z-50 w-64 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
       {/* Avatar + identity */}
-      <div className="bg-indigo-600 px-5 pt-5 pb-8 relative">
+      <div className="bg-indigo-600 px-5 pt-5 pb-5">
         <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center mb-3 border-2 border-white/30">
           <span className="text-white text-xl font-bold tracking-tight">{initials}</span>
         </div>
@@ -111,25 +111,23 @@ function ProfileDropdown({ user, token, onLogout, onClose }) {
       </div>
 
       {/* Info rows */}
-      <div className="px-5 -mt-4">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-50">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <User size={13} className="text-gray-400 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Account</p>
-              <p className="text-xs font-semibold text-gray-700 truncate">{email}</p>
+      <div className="divide-y divide-gray-50">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <User size={13} className="text-gray-400 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Account</p>
+            <p className="text-xs font-semibold text-gray-700 truncate">{email}</p>
+          </div>
+        </div>
+        {createdLabel && (
+          <div className="flex items-center gap-3 px-5 py-3">
+            <Bell size={13} className="text-gray-400 shrink-0" />
+            <div>
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Member since</p>
+              <p className="text-xs font-semibold text-gray-700">{createdLabel}</p>
             </div>
           </div>
-          {createdLabel && (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <Bell size={13} className="text-gray-400 shrink-0" />
-              <div>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Member since</p>
-                <p className="text-xs font-semibold text-gray-700">{createdLabel}</p>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Logout */}

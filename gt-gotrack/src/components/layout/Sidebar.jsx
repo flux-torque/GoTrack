@@ -11,10 +11,10 @@ import {
   LayoutDashboard,
   Receipt,
   PlusCircle,
-  Tag,
   Settings,
   BarChart2,
   PiggyBank,
+  TrendingUp,
   User,
 } from 'lucide-react';
 import { NAV_LINKS, APP_CONFIG, ROUTES } from '../../constants';
@@ -32,7 +32,7 @@ const ICON_MAP = {
   Receipt,
   PlusCircle,
   PiggyBank,
-  Tag,
+  TrendingUp,
   Settings,
 };
 

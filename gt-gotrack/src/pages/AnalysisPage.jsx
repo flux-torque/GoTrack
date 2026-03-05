@@ -392,51 +392,39 @@ function SpendingVelocityCard({ periodExpenses }) {
 // ---------------------------------------------------------------------------
 
 /**
- * 2×2 grid of key summary numbers shown above the detailed cards.
+ * 2×2 grid of key summary numbers — single card with internal dividers.
  * @param {{ summary: Object, currentPeriod: Object }} props
  */
 function QuickStats({ summary, currentPeriod }) {
   if (!summary) return null;
 
-  const stats = [
-    {
-      label: 'Spent',
-      value: fmt(summary.expense ?? 0),
-      color: 'text-rose-600',
-      bg: 'bg-rose-50',
-      border: 'border-rose-100',
-    },
-    {
-      label: 'Cash Inflow',
-      value: fmt(summary.income ?? 0),
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
-      border: 'border-emerald-100',
-    },
-    {
-      label: 'Net Flow',
-      value: fmt(summary.netFlow ?? 0),
-      color: (summary.netFlow ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600',
-      bg: 'bg-white',
-      border: 'border-gray-100',
-    },
-    {
-      label: 'Savings Rate',
-      value: `${summary.savingsRate ?? 0}%`,
-      color: (summary.savingsRate ?? 0) >= 20 ? 'text-emerald-600' : 'text-gray-700',
-      bg: 'bg-white',
-      border: 'border-gray-100',
-    },
-  ];
+  const netPositive  = (summary.netFlow ?? 0) >= 0;
+  const savingsGood  = (summary.savingsRate ?? 0) >= 20;
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {stats.map(({ label, value, color, bg, border }) => (
-        <div key={label} className={cn('rounded-2xl border p-4 shadow-sm', bg, border)}>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{label}</p>
-          <p className={cn('text-xl font-bold leading-tight', color)}>{value}</p>
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="grid grid-cols-2 divide-x divide-y divide-gray-100">
+        <div className="p-4 sm:p-5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Spent</p>
+          <p className="text-xl font-bold text-rose-500 leading-tight tabular-nums">{fmt(summary.expense ?? 0)}</p>
         </div>
-      ))}
+        <div className="p-4 sm:p-5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Cash Inflow</p>
+          <p className="text-xl font-bold text-emerald-600 leading-tight tabular-nums">{fmt(summary.income ?? 0)}</p>
+        </div>
+        <div className="p-4 sm:p-5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Net Flow</p>
+          <p className={cn('text-xl font-bold leading-tight tabular-nums', netPositive ? 'text-emerald-600' : 'text-rose-500')}>
+            {netPositive ? '+' : ''}{fmt(summary.netFlow ?? 0)}
+          </p>
+        </div>
+        <div className="p-4 sm:p-5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Savings Rate</p>
+          <p className={cn('text-xl font-bold leading-tight', savingsGood ? 'text-emerald-600' : 'text-gray-700')}>
+            {summary.savingsRate ?? 0}%
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

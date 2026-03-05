@@ -15,6 +15,7 @@ export const ROUTES = {
   EXPENSES: '/expenses',
   ADD_EXPENSE: '/add-expense',
   BUDGET: '/budget',
+  INVESTMENT: '/investment',
   CATEGORIES: '/categories',
   SETTINGS: '/settings',
   LOGIN: '/login',
@@ -151,11 +152,11 @@ export const RECENT_TRANSACTIONS_LIMIT = 5;
 
 /** Nav links shown in the Sidebar */
 export const NAV_LINKS = [
-  { label: 'Dashboard',    route: ROUTES.HOME,        icon: 'LayoutDashboard', enabled: true },
-  { label: 'Analysis',     route: ROUTES.ANALYSIS,    icon: 'BarChart2',       enabled: true },
-  { label: 'Transactions', route: ROUTES.EXPENSES,    icon: 'Receipt',         enabled: true },
-  { label: 'Add Expense',  route: ROUTES.ADD_EXPENSE, icon: 'PlusCircle',      enabled: true },
-  { label: 'Budget',       route: ROUTES.BUDGET,      icon: 'PiggyBank',       enabled: true },
-  { label: 'Categories',   route: ROUTES.CATEGORIES,  icon: 'Tag',             enabled: false },
+  { label: 'Dashboard',    route: ROUTES.HOME,        icon: 'LayoutDashboard', enabled: true  },
+  { label: 'Analysis',     route: ROUTES.ANALYSIS,    icon: 'BarChart2',       enabled: true  },
+  { label: 'Transactions', route: ROUTES.EXPENSES,    icon: 'Receipt',         enabled: true  },
+  { label: 'Add Expense',  route: ROUTES.ADD_EXPENSE, icon: 'PlusCircle',      enabled: true  },
+  { label: 'Budget',       route: ROUTES.BUDGET,      icon: 'PiggyBank',       enabled: true  },
+  { label: 'Investment',   route: ROUTES.INVESTMENT,  icon: 'TrendingUp',      enabled: false },
   { label: 'Settings',     route: ROUTES.SETTINGS,    icon: 'Settings',        enabled: false },
 ];
