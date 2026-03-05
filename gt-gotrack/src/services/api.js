@@ -51,8 +51,14 @@ export async function apiFetch(path, options = {}) {
   });
 
   if (res.status === 401) {
-    window.dispatchEvent(new Event('gt:auth:expired'));
-    throw new Error('Session expired. Please sign in again.');
+    const err = await res.json().catch(() => ({ error: 'Unauthorized' }));
+    // Only fire session-expired if the user had an active session (i.e. not a login attempt)
+    const hasSession = !!localStorage.getItem('gt_auth');
+    if (hasSession) {
+      window.dispatchEvent(new Event('gt:auth:expired'));
+      throw new Error('Session expired. Please sign in again.');
+    }
+    throw new Error(err.error || 'Invalid credentials');
   }
 
   if (!res.ok) {
