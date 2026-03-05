@@ -114,20 +114,53 @@
 ## ➕ Phase 3 — Add Expense Page
 > Reference: `screenshots/add-expense.png`
 
-- [ ] 3.1 — Build `components/common/Input.jsx` — reusable input with label + error state
-- [ ] 3.2 — Build `components/common/Select.jsx` — custom styled dropdown
-- [ ] 3.3 — Build `components/forms/AddExpenseForm.jsx`
+- [x] 3.1 — Build `components/common/Input.jsx` — reusable input with label + error state
+- [x] 3.2 — Build `components/common/Select.jsx` — custom styled dropdown
+- [x] 3.3 — Build `components/forms/AddExpenseForm.jsx`
   - Fields: Amount (₹), Type (Expense/Income toggle), Category, Date, Note/Description
   - Validation: amount required + numeric, category required, date required
   - On submit: dispatch to ExpenseContext, show success toast, reset form
   - Match `screenshots/add-expense.png`
 
-- [ ] 3.4 — Build `pages/AddExpensePage.jsx`
+- [x] 3.4 — Build `pages/AddExpensePage.jsx`
   - Wraps the form with page layout
   - Back button → /expenses
   - Success → redirect to /expenses
 
-**Phase 3 complete when:** Form submits and adds to context state, visible in ExpensesPage.
+**Phase 3 complete when:** Form submits and adds to context state, visible in ExpensesPage. ✅ DONE (see Phase 9 for full implementation details)
+
+---
+
+## 📝 Phase 9 — v1.9: Manual Transaction Entry
+
+> Implements the Add Expense page (Phase 3 original scope) with an enhanced Debit/Credit model and auto-generated transaction IDs.
+
+- [x] 9.1 — Create `src/utils/generateTransactionId.js`
+  - Format: `GT{YYYYMMDD}-{XXXXXX}` (e.g. `GT20260305-A7K3M2`)
+  - Uses `crypto.getRandomValues` — no external library
+  - Unambiguous charset (no I, O, 0, 1)
+  - Date portion regenerates when transaction date changes
+
+- [x] 9.2 — Create `src/components/common/Input.jsx`
+  - Labeled input (text/number/date) with error + helper text
+  - Indigo focus ring, read-only and disabled states
+
+- [x] 9.3 — Create `src/components/common/Select.jsx`
+  - Labeled dropdown with placeholder option, error state
+  - Consistent styling with Input
+
+- [x] 9.4 — Create `src/components/forms/AddExpenseForm.jsx`
+  - Debit / Credit type toggle (maps to `expense` / `income`)
+  - Fields: Amount, Title, Category, Date, Note (optional)
+  - Auto-generated Transaction ID shown read-only + regenerate button
+  - Submit button label and color adapt to selected type
+  - Brief success flash → auto-navigate to `/expenses`
+  - Reset clears all fields and regenerates ID
+
+- [x] 9.5 — Replace `src/pages/AddExpensePage.jsx` placeholder
+  - Centered max-width card, page title "Record Transaction"
+
+**Phase 9 complete when:** User can manually record a debit or credit, see it in the Expenses list, with a unique GT-format transaction ID. ✅ DONE
 
 ---
 

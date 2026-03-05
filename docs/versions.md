@@ -131,6 +131,61 @@
 
 ---
 
+## v1.8 — Feature Enrichment + Code Quality
+
+**Status:** ✅ Complete (Phase 8)
+**Released:** 2026-03-03
+
+### What was built
+
+| File | Purpose |
+|------|---------|
+| `src/utils/paymentTypeDetector.js` | UPI/NEFT/IMPS/RTGS/ATM/Card/Auto-Debit detection + aggregation |
+| `src/utils/budgetEngine.js` | Rewritten: pure monthly model (no salary tracking) |
+| `src/context/BudgetContext.jsx` | `targetSavings` → `monthlyBudget`, storage key bumped to `gt_budget_v2` |
+| `src/hooks/useBudget.js` | Simplified, no salary detection |
+| `src/components/budget/BudgetInsights.jsx` | 6 insight cards: Peak Day, Largest Tx, Needs/Wants, Weekend/Weekday, Payment Methods, Month Rhythm |
+| `src/pages/BudgetPage.jsx` | 3 states: no data / unconfigured / configured |
+| `src/pages/ExpensesPage.jsx` | Search + sort + payment type filter pills + Insights tab |
+| `src/pages/AnalysisPage.jsx` | Cash Inflow Sources, Payment Methods breakdown, Day-of-Week chart |
+| `src/components/dashboard/StatsRow.jsx` | 4 cards: Balance, Cash Inflow, Expenses, Net Flow |
+| `src/pages/HomePage.jsx` | Budget Quick-Stats widget added |
+| `docs/phase4-auth-db-plan.md` | Supabase auth + Postgres DB plan |
+
+---
+
+## v1.9 — Manual Transaction Entry
+
+**Status:** ✅ Complete (Phase 9)
+**Released:** 2026-03-05
+
+### What was built
+
+| File | Purpose |
+|------|---------|
+| `src/utils/generateTransactionId.js` | Generates `GT{YYYYMMDD}-{XXXXXX}` IDs using `crypto.getRandomValues` |
+| `src/components/common/Input.jsx` | Reusable labeled input (text/number/date) with error state |
+| `src/components/common/Select.jsx` | Reusable labeled dropdown with error state |
+| `src/components/forms/AddExpenseForm.jsx` | Full manual transaction form: Debit/Credit toggle, amount, title, category, date, note, TXN ID |
+| `src/pages/AddExpensePage.jsx` | Replaced placeholder — centered card with "Record Transaction" header |
+
+### Transaction ID Format
+- Pattern: `GT{YYYYMMDD}-{XXXXXX}` — e.g. `GT20260305-A7K3M2`
+- Date portion is embedded for human readability and sortability
+- 6-char random suffix uses unambiguous charset (no I, O, 0, 1)
+- Regenerates automatically when transaction date changes; user can also manually regenerate
+- Distinguishable from imported transactions (`import-{timestamp}-{index}`)
+
+### Demo flow
+1. Click "Add Expense" in sidebar
+2. Select Debit or Credit
+3. Fill amount, title, category, date, optional note
+4. Transaction ID auto-generates (GT-format) — can be refreshed
+5. Submit → brief success flash → redirects to Expenses page
+6. New transaction appears at top of the list
+
+---
+
 ## v2.0 — Backend + Persistence (Planned)
 
 - Node.js + Express backend
