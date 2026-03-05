@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://gotrack-production-40bc.up.railway.app/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
