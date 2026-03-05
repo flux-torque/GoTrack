@@ -78,7 +78,7 @@ export function StatsRow({ summary, periodType = 'monthly' }) {
   const periodIncome  = summary?.income  ?? 0;
   const periodExpense = summary?.expense ?? 0;
   const periodNetFlow = summary?.netFlow ?? 0;
-  const periodLabel   = periodType === 'weekly' ? 'Week' : 'Month';
+  const periodLabel   = periodType === 'weekly' ? 'Week' : periodType === 'custom' ? 'Range' : 'Month';
 
   useEffect(() => {
     logger.info('[StatsRow] income:', periodIncome, '| expense:', periodExpense, '| netFlow:', periodNetFlow);

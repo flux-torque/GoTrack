@@ -24,6 +24,7 @@ import {
   Upload, Wallet, Zap, Calendar, Coffee, Edit3,
   LayoutGrid, Lightbulb, TrendingUp, ArrowUpRight,
   ChevronLeft, ChevronRight, RotateCcw, CheckCircle2,
+  CalendarDays, X,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import {
@@ -39,6 +40,7 @@ import { SpendingPaceChart } from '../components/budget/SpendingPaceChart';
 import { BudgetInsights } from '../components/budget/BudgetInsights';
 
 import { useBudget } from '../hooks/useBudget';
+import { useWeeklyBudget, getWeeksForMonth, computeWeekMetrics } from '../hooks/useWeeklyBudget';
 import {
   useBudgetSettings,
   getBudgetForMonth,
@@ -346,6 +348,202 @@ function InlineBudgetEdit({ initialValue, monthLabel, onCancel, onSave }) {
 }
 
 // ---------------------------------------------------------------------------
+// Weekly Budget Section
+// ---------------------------------------------------------------------------
+
+/**
+ * Inline editor for setting a week's budget.
+ */
+function WeekBudgetInput({ initialValue, onSave, onCancel, onClear }) {
+  const [raw, setRaw] = useState(initialValue != null ? String(initialValue) : '');
+  const [err, setErr] = useState('');
+
+  const handleSave = () => {
+    const amount = parseFloat(raw);
+    if (!raw || isNaN(amount) || amount <= 0) { setErr('Enter a valid amount'); return; }
+    onSave(amount);
+  };
+
+  return (
+    <div className="flex items-center gap-2 mt-2 flex-wrap">
+      <div className="relative">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs select-none">
+          {APP_CONFIG.CURRENCY_SYMBOL}
+        </span>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={raw}
+          autoFocus
+          onChange={(e) => { setErr(''); setRaw(e.target.value.replace(/[^0-9.]/g, '')); }}
+          onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+          placeholder="e.g. 2500"
+          className={cn(
+            'pl-6 pr-2 py-1.5 rounded-lg border text-xs font-medium w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500',
+            err ? 'border-rose-300 bg-rose-50' : 'border-gray-200 bg-white'
+          )}
+        />
+      </div>
+      <button
+        onClick={handleSave}
+        className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+      >
+        <CheckCircle2 size={12} /> Save
+      </button>
+      {initialValue != null && (
+        <button
+          onClick={onClear}
+          className="text-xs text-gray-400 hover:text-rose-500 flex items-center gap-1 transition-colors"
+        >
+          <X size={11} /> Remove
+        </button>
+      )}
+      <button onClick={onCancel} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+      {err && <p className="w-full text-xs text-rose-500">{err}</p>}
+    </div>
+  );
+}
+
+/**
+ * A single week row showing spending vs optional budget.
+ */
+function WeekRow({ week, expenses, weeklyBudget }) {
+  const [editing, setEditing] = useState(false);
+  const { setBudget, clearBudget } = weeklyBudget;
+
+  const budgetAmount = weeklyBudget.getBudget(week.key);
+  const metrics = useMemo(
+    () => computeWeekMetrics(expenses, week, budgetAmount),
+    [expenses, week, budgetAmount]
+  );
+
+  const barPct = metrics.hasLimit ? Math.min(100, metrics.pct) : 0;
+  const barColor = metrics.isOver ? '#f87171' : '#34d399';
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <p className="text-sm font-semibold text-gray-800">{week.label}</p>
+          <p className="text-[10px] text-gray-400">
+            {week.startDate} → {week.endDate} · {metrics.txCount} tx
+          </p>
+        </div>
+        <div className="text-right">
+          <p className={cn(
+            'text-base font-bold',
+            metrics.isOver ? 'text-rose-600' : 'text-gray-800'
+          )}>
+            {APP_CONFIG.CURRENCY_SYMBOL}{new Intl.NumberFormat(APP_CONFIG.LOCALE, { maximumFractionDigits: 0 }).format(metrics.spent)}
+          </p>
+          {metrics.hasLimit && (
+            <p className={cn('text-[10px] font-medium', metrics.isOver ? 'text-rose-500' : 'text-gray-400')}>
+              {metrics.isOver ? `+${APP_CONFIG.CURRENCY_SYMBOL}${Math.round(metrics.spent - metrics.limit)} over` : `${APP_CONFIG.CURRENCY_SYMBOL}${Math.round(metrics.remaining)} left`}
+              {' of '}{APP_CONFIG.CURRENCY_SYMBOL}{new Intl.NumberFormat(APP_CONFIG.LOCALE, { maximumFractionDigits: 0 }).format(metrics.limit)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar — only when budget is set */}
+      {metrics.hasLimit && (
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{ width: `${barPct}%`, backgroundColor: barColor }}
+          />
+        </div>
+      )}
+
+      {/* Set / edit budget link */}
+      {!editing ? (
+        <button
+          onClick={() => setEditing(true)}
+          className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
+        >
+          {budgetAmount != null ? `Budget: ${APP_CONFIG.CURRENCY_SYMBOL}${budgetAmount.toLocaleString()} · Edit` : '+ Set weekly limit'}
+        </button>
+      ) : (
+        <WeekBudgetInput
+          initialValue={budgetAmount}
+          onSave={(amount) => { setBudget(week.key, amount); setEditing(false); }}
+          onCancel={() => setEditing(false)}
+          onClear={() => { clearBudget(week.key); setEditing(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Full weekly budget section — toggle + week cards for the active month.
+ *
+ * @param {Object} props
+ * @param {string} props.activeMonth       - YYYY-MM
+ * @param {string} props.monthLabel        - Display label e.g. "March 2026"
+ * @param {Object[]} props.expenses
+ * @param {Object} props.weeklyBudget      - From useWeeklyBudget()
+ */
+function WeeklyBudgetSection({ activeMonth, monthLabel, expenses, weeklyBudget }) {
+  const weeks = useMemo(() => getWeeksForMonth(activeMonth), [activeMonth]);
+  const { enabled, toggleEnabled } = weeklyBudget;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Header with toggle */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center">
+            <CalendarDays size={15} className="text-indigo-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800">Weekly Budget</h3>
+            <p className="text-xs text-gray-400">{monthLabel} · {weeks.length} weeks</p>
+          </div>
+        </div>
+        <button
+          onClick={toggleEnabled}
+          className={cn(
+            'relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none',
+            enabled ? 'bg-indigo-600' : 'bg-gray-200'
+          )}
+          aria-label={enabled ? 'Disable weekly budget' : 'Enable weekly budget'}
+        >
+          <span
+            className={cn(
+              'inline-block w-4 h-4 transform rounded-full bg-white shadow-sm transition-transform duration-200',
+              enabled ? 'translate-x-6' : 'translate-x-1'
+            )}
+          />
+        </button>
+      </div>
+
+      {enabled ? (
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {weeks.map((week) => (
+            <WeekRow
+              key={week.key}
+              week={week}
+              expenses={expenses}
+              weeklyBudget={weeklyBudget}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="px-5 py-8 text-center">
+          <p className="text-sm text-gray-400">
+            Enable weekly budget to track spending for individual weeks.
+          </p>
+          <p className="text-xs text-gray-300 mt-1">
+            You can set limits for specific weeks and leave others open.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -357,6 +555,7 @@ export default function BudgetPage() {
   const { state: { expenses } } = useExpenses();
   const budget = useBudget();
   const { settings, dispatch } = useBudgetSettings();
+  const weeklyBudget = useWeeklyBudget();
 
   const [editingBudget, setEditingBudget] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -696,11 +895,28 @@ export default function BudgetPage() {
                   isCustomBudget={isCustomBudget}
                 />
               </div>
+
+              {/* Weekly budget section */}
+              <WeeklyBudgetSection
+                activeMonth={activeMonth}
+                monthLabel={selectedMonthLabel}
+                expenses={expenses}
+                weeklyBudget={weeklyBudget}
+              />
             </>
           ) : (
-            <div className="text-center py-16 text-gray-400 text-sm">
-              No transactions found for {selectedMonthLabel}.
-            </div>
+            <>
+              <div className="text-center py-16 text-gray-400 text-sm">
+                No transactions found for {selectedMonthLabel}.
+              </div>
+              {/* Still show weekly section for months without budget configured */}
+              <WeeklyBudgetSection
+                activeMonth={activeMonth}
+                monthLabel={selectedMonthLabel}
+                expenses={expenses}
+                weeklyBudget={weeklyBudget}
+              />
+            </>
           )}
         </>
       )}

@@ -1,29 +1,27 @@
 /**
  * @file ExpensesPage.jsx
- * @description Transactions page — full-featured transaction list with period filter,
- * search, sort, payment type filtering, budget opt-out, and a smart Insights tab.
- *
- * Period filter:
- *   [All | Weekly | Monthly] toggle + ‹ Period › navigation.
- *   When active, both the transaction list and Insights tab are scoped to that period.
- *   Clearing the period filter shows all transactions.
- *
- * v3.1: Added period filter (Week/Month) on top of search/sort/payment filters.
+ * @description Transactions page — full-featured transaction list with:
+ *   - Period filter (All / Weekly / Monthly)
+ *   - Date range filter (From → To date pickers)
+ *   - Search, sort, and payment type filter
+ *   - Edit mode: multi-select with bulk delete / budget-exclude
+ *   - Delete animation (fade + slide before actual removal)
+ *   - Insights tab
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Upload, Trash2, ArrowDownCircle, ArrowUpCircle, AlertTriangle,
   MinusCircle, PlusCircle, Search, X, SlidersHorizontal,
   LayoutList, Lightbulb, CreditCard, TrendingDown,
   ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight,
-  CalendarDays,
+  CalendarDays, CheckSquare, Square, Edit2, Calendar,
 } from 'lucide-react';
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
 
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { BankUploadModal } from '../components/common/BankUploadModal';
-import { useExpenses, EXPENSE_ACTIONS } from '../context/ExpenseContext';
+import { useExpenses } from '../context/ExpenseContext';
 import { usePeriodAnalytics } from '../hooks/usePeriodAnalytics';
 import { CATEGORY_MAP, APP_CONFIG } from '../constants';
 import {
@@ -104,8 +102,8 @@ function getCategoryEmoji(categoryId) {
 // ---------------------------------------------------------------------------
 
 const SORT_OPTIONS = [
-  { value: 'date-desc',   label: 'Newest first',  icon: ArrowDown },
-  { value: 'date-asc',    label: 'Oldest first',  icon: ArrowUp },
+  { value: 'date-desc',   label: 'Newest first',   icon: ArrowDown },
+  { value: 'date-asc',    label: 'Oldest first',   icon: ArrowUp },
   { value: 'amount-desc', label: 'Highest amount', icon: TrendingDown },
   { value: 'amount-asc',  label: 'Lowest amount',  icon: ArrowUpDown },
 ];
@@ -122,16 +120,6 @@ const PERIOD_TYPE_OPTIONS = [
 
 /**
  * Period type toggle + ‹ Period › navigation.
- * When type is 'all', no navigation is shown.
- *
- * @param {Object} props
- * @param {string} props.periodType
- * @param {function(string): void} props.onPeriodTypeChange
- * @param {import('../utils/periodAnalytics').PeriodKey | null} props.currentPeriod
- * @param {function} props.onPrev
- * @param {function} props.onNext
- * @param {boolean} props.canPrev
- * @param {boolean} props.canNext
  */
 function PeriodFilterBar({
   periodType, onPeriodTypeChange,
@@ -157,7 +145,6 @@ function PeriodFilterBar({
         ))}
       </div>
 
-      {/* Period navigator — only when not 'all' */}
       {periodType !== 'all' && currentPeriod && (
         <div className="flex items-center gap-1.5 bg-gray-50 rounded-xl px-3 py-1.5 border border-gray-100">
           <button
@@ -190,14 +177,105 @@ function PeriodFilterBar({
 }
 
 // ---------------------------------------------------------------------------
+// Date Range Filter
+// ---------------------------------------------------------------------------
+
+/**
+ * Expandable date range filter (From → To).
+ *
+ * @param {Object} props
+ * @param {string} props.dateFrom  - YYYY-MM-DD
+ * @param {string} props.dateTo    - YYYY-MM-DD
+ * @param {function} props.onFromChange
+ * @param {function} props.onToChange
+ * @param {function} props.onClear
+ * @param {boolean} props.isOpen
+ * @param {function} props.onToggle
+ */
+function DateRangeFilter({ dateFrom, dateTo, onFromChange, onToChange, onClear, isOpen, onToggle }) {
+  const hasFilter = dateFrom || dateTo;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        onClick={onToggle}
+        className={cn(
+          'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-colors',
+          hasFilter
+            ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+        )}
+      >
+        <Calendar size={12} />
+        {hasFilter ? `${dateFrom || '…'} → ${dateTo || '…'}` : 'Date Range'}
+        {hasFilter && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            className="ml-1 text-indigo-400 hover:text-indigo-700"
+          >
+            <X size={11} />
+          </button>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="flex items-center gap-2 flex-wrap animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 font-medium">From</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => onFromChange(e.target.value)}
+              max={dateTo || undefined}
+              className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-700"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 font-medium">To</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => onToChange(e.target.value)}
+              min={dateFrom || undefined}
+              className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-700"
+            />
+          </div>
+          {hasFilter && (
+            <button
+              onClick={onClear}
+              className="text-xs text-gray-400 hover:text-rose-500 transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ExpenseRow
 // ---------------------------------------------------------------------------
 
 /**
- * Single transaction row — category icon, title, payment type badge, amount.
- * On hover: shows delete + budget-exclude toggle.
+ * Single transaction row. In edit mode shows a checkbox + click-to-select.
+ * Supports delete animation via isDeleting prop (fade + slide before removal).
+ *
+ * @param {Object} props
+ * @param {Object} props.expense
+ * @param {function} props.onDelete
+ * @param {function} props.onToggleBudgetExclude
+ * @param {boolean} [props.showDate]
+ * @param {boolean} [props.editMode]
+ * @param {boolean} [props.isSelected]
+ * @param {function} [props.onToggleSelect]
+ * @param {boolean} [props.isDeleting]
  */
-function ExpenseRow({ expense, onDelete, onToggleBudgetExclude, showDate = false }) {
+function ExpenseRow({
+  expense, onDelete, onToggleBudgetExclude, showDate = false,
+  editMode = false, isSelected = false, onToggleSelect, isDeleting = false,
+}) {
   const [showActions, setShowActions] = useState(false);
   const category = CATEGORY_MAP[expense.category] || CATEGORY_MAP['other'];
   const isExpense = expense.type === 'expense';
@@ -205,15 +283,37 @@ function ExpenseRow({ expense, onDelete, onToggleBudgetExclude, showDate = false
   const paymentType = detectPaymentType(expense.note);
   const ptColors = PAYMENT_TYPE_COLORS[paymentType] ?? PAYMENT_TYPE_COLORS[PAYMENT_TYPES.OTHER];
 
+  const handleRowClick = () => {
+    if (editMode && onToggleSelect) onToggleSelect(expense.id);
+  };
+
   return (
     <div
       className={cn(
-        'flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors rounded-xl',
-        isExcluded && 'opacity-60'
+        'flex items-center gap-3 px-4 py-3 transition-all duration-300 rounded-xl',
+        isDeleting
+          ? 'opacity-0 -translate-x-3 bg-rose-50 pointer-events-none'
+          : '',
+        !isDeleting && isSelected && 'bg-indigo-50',
+        !isDeleting && !isSelected && 'hover:bg-gray-50',
+        editMode && !isDeleting && 'cursor-pointer',
+        isExcluded && !isSelected && 'opacity-60',
       )}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      onMouseEnter={() => !editMode && setShowActions(true)}
+      onMouseLeave={() => !editMode && setShowActions(false)}
+      onClick={handleRowClick}
     >
+      {/* Checkbox — only in edit mode */}
+      {editMode && (
+        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => onToggleSelect && onToggleSelect(expense.id)}>
+            {isSelected
+              ? <CheckSquare size={16} className="text-indigo-600" />
+              : <Square size={16} className="text-gray-300" />}
+          </button>
+        </div>
+      )}
+
       <div className={cn('flex items-center justify-center w-9 h-9 rounded-xl shrink-0', category.bgColor)}>
         <span className="text-base">{getCategoryEmoji(expense.category)}</span>
       </div>
@@ -255,29 +355,34 @@ function ExpenseRow({ expense, onDelete, onToggleBudgetExclude, showDate = false
         </div>
       </div>
 
-      <button
-        onClick={() => onToggleBudgetExclude(expense.id)}
-        title={isExcluded ? 'Include in budget' : 'Exclude from budget'}
-        className={cn(
-          'flex items-center justify-center w-7 h-7 rounded-full transition-all duration-150 shrink-0',
-          showActions ? 'opacity-100' : 'opacity-0',
-          isExcluded
-            ? 'bg-indigo-50 text-indigo-400 hover:bg-indigo-100 hover:text-indigo-600'
-            : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
-        )}
-      >
-        {isExcluded ? <PlusCircle size={13} /> : <MinusCircle size={13} />}
-      </button>
+      {/* Action buttons — only in non-edit mode, on hover */}
+      {!editMode && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleBudgetExclude(expense.id); }}
+            title={isExcluded ? 'Include in budget' : 'Exclude from budget'}
+            className={cn(
+              'flex items-center justify-center w-7 h-7 rounded-full transition-all duration-150 shrink-0',
+              showActions ? 'opacity-100' : 'opacity-0',
+              isExcluded
+                ? 'bg-indigo-50 text-indigo-400 hover:bg-indigo-100 hover:text-indigo-600'
+                : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
+            )}
+          >
+            {isExcluded ? <PlusCircle size={13} /> : <MinusCircle size={13} />}
+          </button>
 
-      <button
-        onClick={() => onDelete(expense.id)}
-        className={cn(
-          'flex items-center justify-center w-7 h-7 rounded-full transition-all duration-150 shrink-0',
-          showActions ? 'opacity-100 bg-rose-50 text-rose-400 hover:bg-rose-100 hover:text-rose-600' : 'opacity-0'
-        )}
-      >
-        <Trash2 size={13} />
-      </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(expense.id); }}
+            className={cn(
+              'flex items-center justify-center w-7 h-7 rounded-full transition-all duration-150 shrink-0',
+              showActions ? 'opacity-100 bg-rose-50 text-rose-400 hover:bg-rose-100 hover:text-rose-600' : 'opacity-0'
+            )}
+          >
+            <Trash2 size={13} />
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -286,7 +391,7 @@ function ExpenseRow({ expense, onDelete, onToggleBudgetExclude, showDate = false
 // SummaryBar
 // ---------------------------------------------------------------------------
 
-/** @param {{ expenses: import('../context/ExpenseContext').Expense[], periodLabel?: string }} props */
+/** @param {{ expenses: Object[], periodLabel?: string }} props */
 function SummaryBar({ expenses, periodLabel }) {
   const totalExpense = expenses.filter((e) => e.type === 'expense').reduce((s, e) => s + e.amount, 0);
   const totalIncome  = expenses.filter((e) => e.type === 'income').reduce((s, e) => s + e.amount, 0);
@@ -410,6 +515,84 @@ function FilterBar({
 }
 
 // ---------------------------------------------------------------------------
+// Bulk Selection Action Bar (floating at bottom)
+// ---------------------------------------------------------------------------
+
+/**
+ * Floating action bar that appears when rows are selected in edit mode.
+ *
+ * @param {Object} props
+ * @param {number} props.selectedCount
+ * @param {number} props.totalVisible
+ * @param {function} props.onSelectAll
+ * @param {function} props.onBulkDelete
+ * @param {function} props.onBulkExclude
+ * @param {function} props.onBulkInclude
+ * @param {function} props.onCancel
+ */
+function SelectionBar({
+  selectedCount, totalVisible,
+  onSelectAll, onBulkDelete, onBulkExclude, onBulkInclude, onCancel,
+}) {
+  const allSelected = selectedCount === totalVisible && totalVisible > 0;
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-gray-900 text-white rounded-2xl px-4 py-3 shadow-2xl border border-gray-700 flex-wrap max-w-[95vw]">
+      <button
+        onClick={onSelectAll}
+        className="flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white transition-colors shrink-0"
+      >
+        {allSelected
+          ? <CheckSquare size={14} className="text-indigo-400" />
+          : <Square size={14} />}
+        {allSelected ? 'Deselect all' : `Select all ${totalVisible}`}
+      </button>
+
+      <div className="w-px h-4 bg-gray-700 mx-1" />
+
+      <span className="text-xs font-semibold text-indigo-300 shrink-0">
+        {selectedCount} selected
+      </span>
+
+      {selectedCount > 0 && (
+        <>
+          <div className="w-px h-4 bg-gray-700 mx-1" />
+          <button
+            onClick={onBulkExclude}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors shrink-0"
+          >
+            <MinusCircle size={13} className="text-gray-400" />
+            Exclude
+          </button>
+          <button
+            onClick={onBulkInclude}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors shrink-0"
+          >
+            <PlusCircle size={13} className="text-indigo-400" />
+            Include
+          </button>
+          <button
+            onClick={onBulkDelete}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shrink-0"
+          >
+            <Trash2 size={13} />
+            Delete {selectedCount}
+          </button>
+        </>
+      )}
+
+      <div className="w-px h-4 bg-gray-700 mx-1" />
+      <button
+        onClick={onCancel}
+        className="text-xs text-gray-400 hover:text-white transition-colors shrink-0"
+      >
+        Done
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Insights panel
 // ---------------------------------------------------------------------------
 
@@ -436,7 +619,7 @@ function PaymentInsightRow({ type, totalAmount, count, pct, hex }) {
 
 /**
  * Transaction insights panel — respects the period filter.
- * @param {{ expenses: import('../context/ExpenseContext').Expense[], periodLabel?: string }} props
+ * @param {{ expenses: Object[], periodLabel?: string }} props
  */
 function TransactionInsights({ expenses, periodLabel }) {
   const expenseOnly = expenses.filter((e) => e.type === 'expense');
@@ -674,28 +857,41 @@ function ClearConfirm({ count, onConfirm, onCancel }) {
 // ---------------------------------------------------------------------------
 
 /**
- * ExpensesPage — transactions list with period filter, search, sort, payment filter, insights.
+ * ExpensesPage — transactions list with period filter, date range filter,
+ * search, sort, payment filter, multi-select edit mode, and insights.
  * @returns {JSX.Element}
  */
 export default function ExpensesPage() {
-  const { state, dispatch } = useExpenses();
+  const { state, deleteExpense, toggleBudgetExclude, clearExpenses } = useExpenses();
   const expenses = state.expenses;
 
   const [modalOpen, setModalOpen]               = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeTab, setActiveTab]               = useState('transactions');
 
-  // Period filter state
-  const [periodType, setPeriodType]     = useState('all'); // 'all' | 'monthly' | 'weekly'
-  const [syncedPeriodType, setSyncedPeriodType] = useState('monthly'); // tracks last non-all type
+  // Period filter
+  const [periodType, setPeriodType]             = useState('all');
+  const [syncedPeriodType, setSyncedPeriodType] = useState('monthly');
 
-  // Search / sort / payment filter state
+  // Search / sort / payment filter
   const [search, setSearch]               = useState('');
   const [sortOrder, setSortOrder]         = useState('date-desc');
   const [paymentFilter, setPaymentFilter] = useState(null);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
 
-  // Period analytics hook — always called, used when periodType !== 'all'
+  // Date range filter
+  const [dateFrom, setDateFrom]           = useState('');
+  const [dateTo, setDateTo]               = useState('');
+  const [showDateFilter, setShowDateFilter] = useState(false);
+
+  // Edit (multi-select) mode
+  const [editMode, setEditMode]           = useState(false);
+  const [selectedIds, setSelectedIds]     = useState(new Set());
+
+  // Delete animation — ids currently being removed
+  const [deletingIds, setDeletingIds]     = useState(new Set());
+
+  // Period analytics hook
   const {
     setPeriodType: syncAnalyticsPeriodType,
     currentPeriod,
@@ -713,48 +909,135 @@ export default function ExpensesPage() {
     logger.info('[ExpensesPage] Period filter changed to:', type);
   };
 
-  const handleDelete = (id) => {
-    dispatch({ type: EXPENSE_ACTIONS.DELETE_EXPENSE, payload: id });
-    logger.warn('[ExpensesPage] Deleted expense:', id);
-  };
+  // --- Delete with animation ---
+  const handleDelete = useCallback((id) => {
+    setDeletingIds((prev) => new Set([...prev, id]));
+    setTimeout(async () => {
+      try {
+        await deleteExpense(id);
+      } finally {
+        setDeletingIds((prev) => {
+          const n = new Set(prev);
+          n.delete(id);
+          return n;
+        });
+      }
+      logger.warn('[ExpensesPage] Deleted expense:', id);
+    }, 320);
+  }, [deleteExpense]);
 
-  const handleToggleBudgetExclude = (id) => {
-    dispatch({ type: EXPENSE_ACTIONS.TOGGLE_BUDGET_EXCLUDE, payload: id });
+  const handleToggleBudgetExclude = useCallback((id) => {
+    toggleBudgetExclude(id);
     logger.info('[ExpensesPage] Toggled budget exclude for:', id);
-  };
+  }, [toggleBudgetExclude]);
 
   const handleClear = () => {
-    dispatch({ type: EXPENSE_ACTIONS.CLEAR_EXPENSES });
+    clearExpenses();
     setShowClearConfirm(false);
     setSearch('');
     setPaymentFilter(null);
     setPeriodType('all');
+    setDateFrom('');
+    setDateTo('');
+    setEditMode(false);
+    setSelectedIds(new Set());
     logger.warn('[ExpensesPage] Cleared all expenses');
   };
 
-  // Base list: either period-filtered or all
+  // --- Edit mode ---
+  const enterEditMode = () => {
+    setEditMode(true);
+    setSelectedIds(new Set());
+    logger.info('[ExpensesPage] Entered edit mode');
+  };
+
+  const exitEditMode = () => {
+    setEditMode(false);
+    setSelectedIds(new Set());
+    logger.info('[ExpensesPage] Exited edit mode');
+  };
+
+  const toggleSelect = useCallback((id) => {
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }, []);
+
+  // --- Bulk actions ---
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredExpenses.length && filteredExpenses.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredExpenses.map((e) => e.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    const ids = [...selectedIds];
+    for (const id of ids) handleDelete(id);
+    setSelectedIds(new Set());
+    setEditMode(false);
+    logger.warn('[ExpensesPage] Bulk deleted:', ids.length, 'transactions');
+  };
+
+  const handleBulkExclude = () => {
+    for (const id of selectedIds) {
+      const exp = expenses.find((e) => e.id === id);
+      if (exp && !exp.budgetExcluded) toggleBudgetExclude(id);
+    }
+    setSelectedIds(new Set());
+    logger.info('[ExpensesPage] Bulk excluded from budget');
+  };
+
+  const handleBulkInclude = () => {
+    for (const id of selectedIds) {
+      const exp = expenses.find((e) => e.id === id);
+      if (exp && exp.budgetExcluded) toggleBudgetExclude(id);
+    }
+    setSelectedIds(new Set());
+    logger.info('[ExpensesPage] Bulk included in budget');
+  };
+
+  // --- Derived data ---
   const baseExpenses = periodType !== 'all' ? periodExpenses : expenses;
 
-  // Apply search + payment type filter on top of base
   const filteredExpenses = useMemo(() => {
     let result = baseExpenses;
+    // Date range
+    if (dateFrom) result = result.filter((e) => e.date >= dateFrom);
+    if (dateTo)   result = result.filter((e) => e.date <= dateTo);
+    // Search
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(
         (e) => e.title.toLowerCase().includes(q) || (e.note && e.note.toLowerCase().includes(q))
       );
     }
+    // Payment type
     if (paymentFilter !== null) {
       result = result.filter((e) => detectPaymentType(e.note) === paymentFilter);
     }
     return result;
-  }, [baseExpenses, search, paymentFilter]);
+  }, [baseExpenses, dateFrom, dateTo, search, paymentFilter]);
 
   const groups = useMemo(() => groupAndSort(filteredExpenses, sortOrder), [filteredExpenses, sortOrder]);
 
   const isAmountSort = sortOrder === 'amount-desc' || sortOrder === 'amount-asc';
-  const hasActiveFilters = search.trim() || paymentFilter !== null;
+  const hasActiveFilters = search.trim() || paymentFilter !== null || dateFrom || dateTo;
   const periodLabel = periodType !== 'all' ? currentPeriod?.label : null;
+
+  // Last transaction date (across all expenses, not filtered)
+  const lastTransactionDate = useMemo(() => {
+    if (!expenses.length) return null;
+    const latest = [...expenses].sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (!latest) return null;
+    const d = parseISO(latest.date);
+    if (isToday(d)) return 'Today';
+    if (isYesterday(d)) return 'Yesterday';
+    return format(d, 'dd MMM yyyy');
+  }, [expenses]);
 
   return (
     <PageWrapper>
@@ -765,19 +1048,37 @@ export default function ExpensesPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
             <p className="text-sm text-gray-400 mt-0.5">
-              {expenses.length > 0
-                ? `${expenses.length} transaction${expenses.length !== 1 ? 's' : ''} imported`
+              {lastTransactionDate
+                ? <>Last saved: <span className="text-gray-600 font-medium">{lastTransactionDate}</span> · {expenses.length} total</>
                 : 'Upload a statement to get started'}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {expenses.length > 0 && (
+            {expenses.length > 0 && !editMode && (
+              <>
+                <button
+                  onClick={enterEditMode}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  <Edit2 size={14} />
+                  Select
+                </button>
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-rose-600 hover:border-rose-200 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  <span className="hidden sm:inline">Clear Data</span>
+                </button>
+              </>
+            )}
+            {editMode && (
               <button
-                onClick={() => setShowClearConfirm(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-rose-600 hover:border-rose-200 transition-colors"
+                onClick={exitEditMode}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-indigo-600 border border-indigo-200 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
               >
-                <Trash2 size={14} />
-                Clear Data
+                <X size={14} />
+                Cancel Select
               </button>
             )}
             <button
@@ -785,7 +1086,8 @@ export default function ExpensesPage() {
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
             >
               <Upload size={15} />
-              Upload Statement
+              <span className="hidden sm:inline">Upload Statement</span>
+              <span className="sm:hidden">Upload</span>
             </button>
           </div>
         </div>
@@ -811,7 +1113,7 @@ export default function ExpensesPage() {
             {/* ── TRANSACTIONS TAB ── */}
             {activeTab === 'transactions' && (
               <>
-                {/* Period filter — always visible when data exists */}
+                {/* Period filter */}
                 <PeriodFilterBar
                   periodType={periodType}
                   onPeriodTypeChange={handlePeriodTypeChange}
@@ -820,6 +1122,17 @@ export default function ExpensesPage() {
                   onNext={goToNext}
                   canPrev={canGoPrev}
                   canNext={canGoNext}
+                />
+
+                {/* Date range filter */}
+                <DateRangeFilter
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  onFromChange={setDateFrom}
+                  onToChange={setDateTo}
+                  onClear={() => { setDateFrom(''); setDateTo(''); }}
+                  isOpen={showDateFilter}
+                  onToggle={() => setShowDateFilter((v) => !v)}
                 />
 
                 {/* Search + sort + payment filter */}
@@ -834,13 +1147,19 @@ export default function ExpensesPage() {
                   onToggleSortDropdown={setShowSortDropdown}
                 />
 
-                {/* Active filter info */}
+                {/* Filter info */}
                 {(hasActiveFilters || periodType !== 'all') && filteredExpenses.length !== expenses.length && (
                   <p className="text-xs text-gray-400">
                     Showing {filteredExpenses.length} of {expenses.length} transactions
                     {' '}
                     <button
-                      onClick={() => { setSearch(''); setPaymentFilter(null); setPeriodType('all'); }}
+                      onClick={() => {
+                        setSearch('');
+                        setPaymentFilter(null);
+                        setPeriodType('all');
+                        setDateFrom('');
+                        setDateTo('');
+                      }}
                       className="text-indigo-500 hover:text-indigo-700 underline"
                     >
                       Clear all filters
@@ -863,6 +1182,10 @@ export default function ExpensesPage() {
                             onDelete={handleDelete}
                             onToggleBudgetExclude={handleToggleBudgetExclude}
                             showDate
+                            editMode={editMode}
+                            isSelected={selectedIds.has(exp.id)}
+                            onToggleSelect={toggleSelect}
+                            isDeleting={deletingIds.has(exp.id)}
                           />
                         ))}
                       </div>
@@ -884,6 +1207,10 @@ export default function ExpensesPage() {
                                 expense={exp}
                                 onDelete={handleDelete}
                                 onToggleBudgetExclude={handleToggleBudgetExclude}
+                                editMode={editMode}
+                                isSelected={selectedIds.has(exp.id)}
+                                onToggleSelect={toggleSelect}
+                                isDeleting={deletingIds.has(exp.id)}
                               />
                             ))}
                           </div>
@@ -902,7 +1229,6 @@ export default function ExpensesPage() {
             {/* ── INSIGHTS TAB ── */}
             {activeTab === 'insights' && (
               <>
-                {/* Period filter also applies to insights */}
                 <PeriodFilterBar
                   periodType={periodType}
                   onPeriodTypeChange={handlePeriodTypeChange}
@@ -921,6 +1247,19 @@ export default function ExpensesPage() {
           </>
         )}
       </div>
+
+      {/* Floating selection bar */}
+      {editMode && (
+        <SelectionBar
+          selectedCount={selectedIds.size}
+          totalVisible={filteredExpenses.length}
+          onSelectAll={handleSelectAll}
+          onBulkDelete={handleBulkDelete}
+          onBulkExclude={handleBulkExclude}
+          onBulkInclude={handleBulkInclude}
+          onCancel={exitEditMode}
+        />
+      )}
 
       <BankUploadModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </PageWrapper>

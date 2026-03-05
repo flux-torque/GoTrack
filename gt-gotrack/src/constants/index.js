@@ -17,6 +17,7 @@ export const ROUTES = {
   BUDGET: '/budget',
   CATEGORIES: '/categories',
   SETTINGS: '/settings',
+  LOGIN: '/login',
 };
 
 // ---------------------------------------------------------------------------

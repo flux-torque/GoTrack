@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Environment — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+.DS_Store

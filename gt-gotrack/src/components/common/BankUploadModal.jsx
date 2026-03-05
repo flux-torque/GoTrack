@@ -22,7 +22,7 @@ import { cn } from '../../utils/cn';
 import logger from '../../utils/logger';
 import { extractPdfText } from '../../utils/pdfParser';
 import { parseStatement, SUPPORTED_BANKS } from '../../utils/bankParsers/index';
-import { useExpenses, EXPENSE_ACTIONS } from '../../context/ExpenseContext';
+import { useExpenses } from '../../context/ExpenseContext';
 import { APP_CONFIG } from '../../constants';
 import { FileDropZone } from './FileDropZone';
 
@@ -153,13 +153,14 @@ function fmt(amount) {
  * @returns {JSX.Element|null}
  */
 export function BankUploadModal({ open, onClose }) {
-  const { dispatch } = useExpenses();
+  const { importBulk } = useExpenses();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [step, setStep] = useState(STEPS.SELECT_BANK);
   const [selectedBank, setSelectedBank] = useState(null);
   const [file, setFile] = useState(null);
   const [isParsing, setIsParsing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [parseError, setParseError] = useState(null);
   /** @type {[import('../../utils/bankParsers/index').ParseResult|null, function]} */
   const [parsedResult, setParsedResult] = useState(null);
@@ -231,12 +232,20 @@ export function BankUploadModal({ open, onClose }) {
     }
   }, [file, selectedBank]);
 
-  const handleImport = () => {
-    if (!parsedResult) return;
-    // Dispatch the full ParseResult — context will extract transactions + balanceMeta
-    dispatch({ type: EXPENSE_ACTIONS.IMPORT_TRANSACTIONS, payload: parsedResult });
-    logger.info('[BankUploadModal] Dispatched IMPORT_TRANSACTIONS with', parsedResult.transactions.length, 'entries');
-    onClose();
+  const handleImport = async () => {
+    if (!parsedResult || isImporting) return;
+    setIsImporting(true);
+    setParseError(null);
+    try {
+      const result = await importBulk(parsedResult, selectedBank);
+      logger.info('[BankUploadModal] Import complete — inserted:', result?.inserted, 'skipped:', result?.skipped);
+      onClose();
+    } catch (err) {
+      logger.error('[BankUploadModal] Import failed:', err.message);
+      setParseError(err.message || 'Import failed. Please try again.');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleBackdropClick = (e) => {
@@ -462,10 +471,14 @@ export function BankUploadModal({ open, onClose }) {
 
                 <button
                   onClick={handleImport}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                  disabled={isImporting}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
-                  <CheckCircle2 size={15} />
-                  Import All {summary.count} Transactions
+                  {isImporting ? (
+                    <><Loader2 size={15} className="animate-spin" />Saving…</>
+                  ) : (
+                    <><CheckCircle2 size={15} />Import All {summary.count} Transactions</>
+                  )}
                 </button>
               </div>
             </div>

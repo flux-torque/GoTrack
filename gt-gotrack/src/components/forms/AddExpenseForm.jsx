@@ -7,9 +7,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { ArrowDownCircle, ArrowUpCircle, Hash, RefreshCw, CheckCircle } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Hash, RefreshCw, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 
-import { useExpenses, EXPENSE_ACTIONS } from '../../context/ExpenseContext';
+import { useExpenses } from '../../context/ExpenseContext';
 import { CATEGORIES, ROUTES } from '../../constants';
 import { generateTransactionId } from '../../utils/generateTransactionId';
 import { cn } from '../../utils/cn';
@@ -30,7 +30,7 @@ const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c.id, label: c.label })
  * @returns {JSX.Element}
  */
 export function AddExpenseForm() {
-  const { dispatch } = useExpenses();
+  const { addExpense } = useExpenses();
   const navigate = useNavigate();
 
   // ─── Form State ───────────────────────────────────────────────────────────
@@ -43,6 +43,7 @@ export function AddExpenseForm() {
   const [txnId, setTxnId] = useState(() => generateTransactionId());
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Regenerate txnId when date changes so the date portion stays accurate
   useEffect(() => {
@@ -81,36 +82,33 @@ export function AddExpenseForm() {
 
   /** Handle form submission */
   const handleSubmit = useCallback(
-    (e) => {
+    async (e) => {
       e.preventDefault();
       if (!validate()) {
         logger.warn('[AddExpenseForm] Validation failed', errors);
         return;
       }
 
-      const expense = {
-        id: txnId,
-        title: title.trim().slice(0, 60),
-        note: note.trim() || title.trim(),
-        category,
-        type,
-        amount: parseFloat(Number(amount).toFixed(2)),
-        date,
-        balance: 0, // Manual entries have no running account balance
-        budgetExcluded: false,
-      };
-
-      logger.info('[AddExpenseForm] Submitting transaction:', expense);
-      dispatch({ type: EXPENSE_ACTIONS.ADD_EXPENSE, payload: expense });
-
-      setSubmitted(true);
-
-      // Navigate to expenses list after a brief success flash
-      setTimeout(() => {
-        navigate(ROUTES.EXPENSES);
-      }, 900);
+      setSaving(true);
+      try {
+        await addExpense({
+          date,
+          description: note.trim() || title.trim(),
+          amount:      parseFloat(Number(amount).toFixed(2)),
+          type,
+          category,
+        });
+        logger.info('[AddExpenseForm] Transaction saved');
+        setSubmitted(true);
+        setTimeout(() => navigate(ROUTES.EXPENSES), 900);
+      } catch (err) {
+        logger.error('[AddExpenseForm] Save failed:', err.message);
+        setErrors({ submit: err.message || 'Failed to save. Please try again.' });
+      } finally {
+        setSaving(false);
+      }
     },
-    [validate, txnId, title, note, category, type, amount, date, dispatch, navigate, errors]
+    [validate, title, note, category, type, amount, date, addExpense, navigate, errors]
   );
 
   /** Reset form to defaults */
@@ -268,6 +266,14 @@ export function AddExpenseForm() {
         <p className="text-xs text-gray-400">Auto-generated • used for reference only</p>
       </div>
 
+      {/* ── Submit error ── */}
+      {errors.submit && (
+        <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl">
+          <AlertCircle size={15} className="text-rose-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-rose-700">{errors.submit}</p>
+        </div>
+      )}
+
       {/* ── Actions ── */}
       <div className="flex gap-3 pt-2">
         <button
@@ -279,14 +285,16 @@ export function AddExpenseForm() {
         </button>
         <button
           type="submit"
+          disabled={saving}
           className={cn(
-            'flex-1 rounded-xl py-3 text-sm font-semibold text-white transition-colors',
+            'flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
             type === 'income'
               ? 'bg-emerald-500 hover:bg-emerald-600'
               : 'bg-indigo-600 hover:bg-indigo-700'
           )}
         >
-          Record {type === 'income' ? 'Credit' : 'Debit'}
+          {saving ? <Loader2 size={15} className="animate-spin" /> : null}
+          {saving ? 'Saving…' : `Record ${type === 'income' ? 'Credit' : 'Debit'}`}
         </button>
       </div>
     </form>
