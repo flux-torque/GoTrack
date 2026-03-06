@@ -25,12 +25,19 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .map((o) => o.trim())
   .filter(Boolean);
 
+// Matches all Vercel preview deployments for this project:
+// gotrackprod2.vercel.app, gotrackprod2-abc123-project.vercel.app, etc.
+const VERCEL_PREVIEW_RE = /^https:\/\/gotrackprod2[a-z0-9-]*\.vercel\.app$/;
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. mobile apps, curl, Postman)
+      // Allow requests with no origin (mobile apps, curl, Postman, server-to-server)
       if (!origin) return callback(null, true);
+      // Allow exact matches from ALLOWED_ORIGINS env var
       if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow all Vercel deployments for this project (prod + previews)
+      if (VERCEL_PREVIEW_RE.test(origin)) return callback(null, true);
       logger.warn(`[cors] Blocked request from origin: ${origin}`);
       callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
