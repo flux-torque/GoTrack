@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { supabase } from '../config/supabase.js';
 import { requireApiKey } from '../middleware/apiKey.js';
 import { computeTxnHash } from '../utils/hash.js';
+import { parseSMS } from '../utils/smsParser.js';
 import { logger } from '../utils/logger.js';
 
 export const ingestRouter = Router();
@@ -93,6 +94,70 @@ ingestRouter.post('/', requireApiKey, async (req, res, next) => {
     logger.info(`[ingest/POST] user=${req.userId} inserted=${inserted} skipped=${skipped} errors=${errors.length}`);
     res.status(201).json({ inserted, skipped, errors });
   } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /ingest/sms ─────────────────────────────────────────────────────────
+
+/**
+ * POST /ingest/sms
+ * Authorization: Bearer <api_key>
+ *
+ * Designed for iOS Shortcuts — accepts a raw bank SMS string, parses it
+ * server-side, and records the transaction.
+ *
+ * Body: { "message": "ICICI Bank Acct XX578 debited for Rs 51209.44 on 06-Mar-26; CRED Club credited." }
+ *
+ * Returns: { transaction, parsed } on success
+ * Returns: { error, parsed } with 422 if SMS could not be understood
+ */
+ingestRouter.post('/sms', requireApiKey, async (req, res, next) => {
+  try {
+    const { message } = z.object({
+      message: z.string().min(10, 'Message too short to parse'),
+    }).parse(req.body);
+
+    const parsed = parseSMS(message);
+    logger.info(`[ingest/sms] Parsed SMS — amount=${parsed.amount} type=${parsed.type} date=${parsed.date} desc="${parsed.description}"`);
+
+    // Reject if we couldn't extract the essentials
+    if (!parsed.amount || !parsed.type) {
+      return res.status(422).json({
+        error: !parsed.amount
+          ? 'Could not extract amount from message'
+          : 'Could not determine transaction type (debit/credit) from message',
+        parsed,
+      });
+    }
+
+    const { _raw, ...txData } = parsed; // strip debug field before storing
+
+    const row = {
+      ...txData,
+      user_id:  req.userId,
+      txn_hash: computeTxnHash(txData.date, txData.amount, txData.type, txData.description),
+      source:   'sms',
+    };
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .upsert(row, { onConflict: 'user_id,txn_hash', ignoreDuplicates: true })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const wasSkipped = !data;
+    logger.info(`[ingest/sms] user=${req.userId} ${wasSkipped ? 'skipped duplicate' : `inserted txn ${data?.id}`}`);
+
+    res.status(wasSkipped ? 200 : 201).json({
+      status:      wasSkipped ? 'duplicate' : 'inserted',
+      transaction: data ?? null,
+      parsed,
+    });
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors[0].message });
     next(err);
   }
 });
