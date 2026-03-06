@@ -140,6 +140,23 @@ ingestRouter.post('/sms', requireApiKey, async (req, res, next) => {
       source:   'sms',
     };
 
+    // If we have a bank_ref (UPI number), check for existing match first.
+    // This prevents duplicates when the same transaction arrives via both
+    // SMS (short description) and PDF upload (full UPI remark string).
+    if (row.bank_ref) {
+      const { data: existing } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('user_id', req.userId)
+        .eq('bank_ref', row.bank_ref)
+        .maybeSingle();
+
+      if (existing) {
+        logger.info(`[ingest/sms] Duplicate via bank_ref=${row.bank_ref} — skipped`);
+        return res.status(200).json({ status: 'duplicate', transaction: null, parsed });
+      }
+    }
+
     const { data, error } = await supabase
       .from('transactions')
       .upsert(row, { onConflict: 'user_id,txn_hash', ignoreDuplicates: true })
