@@ -21,13 +21,15 @@ import { logger } from '../utils/logger.js';
  * @param {import('express').NextFunction} next
  */
 export async function requireApiKey(req, res, next) {
+  // Accept key from Authorization header OR ?key= query param (for iOS Shortcuts)
   const authHeader = req.headers.authorization;
+  const apiKey = (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null)
+              ?? req.query.key
+              ?? null;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or malformed Authorization header' });
+  if (!apiKey) {
+    return res.status(401).json({ error: 'Missing API key — pass as Authorization: Bearer <key> or ?key=<key>' });
   }
-
-  const apiKey = authHeader.slice(7);
 
   const { data, error } = await supabase
     .from('profiles')
