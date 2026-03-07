@@ -7,7 +7,8 @@
  *   POST /statements              — record a new statement import
  *   GET  /statements              — list all imports for the user
  *   GET  /statements/balances     — get monthly_balances for the user
- *   POST /statements/balances     — upsert a monthly balance entry
+ *   POST  /statements/balances     — upsert a monthly balance entry
+ *   PATCH /statements/balances/:month — manually set opening balance
  */
 
 import { Router } from 'express';
@@ -53,6 +54,58 @@ statementsRouter.post('/', async (req, res, next) => {
     res.status(201).json(data);
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    next(err);
+  }
+});
+
+// ─── PATCH /statements/balances/:month ────────────────────────────────────────
+
+/**
+ * PATCH /statements/balances/:month
+ * Manually set or update the opening balance for a calendar month.
+ * Creates the row if it doesn't exist yet (no statement import required).
+ * Body: { opening_balance: number }
+ */
+statementsRouter.patch('/balances/:month', async (req, res, next) => {
+  try {
+    const { month } = req.params;
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ error: 'month must be YYYY-MM' });
+    }
+
+    const { opening_balance } = z.object({
+      opening_balance: z.number(),
+    }).parse(req.body);
+
+    const { data: existing } = await supabase
+      .from('monthly_balances')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('month', month)
+      .maybeSingle();
+
+    let data, error;
+    if (existing) {
+      ({ data, error } = await supabase
+        .from('monthly_balances')
+        .update({ opening_balance })
+        .eq('id', existing.id)
+        .select()
+        .single());
+    } else {
+      ({ data, error } = await supabase
+        .from('monthly_balances')
+        .insert({ month, user_id: req.user.id, opening_balance, closing_balance: 0 })
+        .select()
+        .single());
+    }
+
+    if (error) throw error;
+
+    logger.info(`[statements/balances PATCH] month=${month} opening=${opening_balance} user=${req.user.id}`);
+    res.json(data);
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors[0].message });
     next(err);
   }
 });

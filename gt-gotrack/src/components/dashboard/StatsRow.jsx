@@ -8,9 +8,9 @@
  */
 
 import { useEffect } from 'react';
-import { Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown } from 'lucide-react';
 import { StatsCard } from './StatsCard';
-import { useExpenses } from '../../context/ExpenseContext';
+import { BalanceCard } from './BalanceCard';
 import { cn } from '../../utils/cn';
 import { APP_CONFIG } from '../../constants';
 import logger from '../../utils/logger';
@@ -66,15 +66,6 @@ function NetFlowCard({ netFlow }) {
  * @returns {JSX.Element}
  */
 export function StatsRow({ summary, periodType = 'monthly' }) {
-  const { state } = useExpenses();
-  const { expenses, balanceMeta } = state;
-
-  // Prefer the closing balance from the imported statement.
-  const totalBalance = balanceMeta?.closingBalance > 0
-    ? balanceMeta.closingBalance
-    : expenses.filter((e) => e.type === 'income').reduce((acc, e) => acc + e.amount, 0)
-      - expenses.filter((e) => e.type === 'expense').reduce((acc, e) => acc + e.amount, 0);
-
   const periodIncome  = summary?.income  ?? 0;
   const periodExpense = summary?.expense ?? 0;
   const periodNetFlow = summary?.netFlow ?? 0;
@@ -86,12 +77,7 @@ export function StatsRow({ summary, periodType = 'monthly' }) {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatsCard
-        title="Total Balance"
-        amount={totalBalance}
-        icon={Wallet}
-        variant="balance"
-      />
+      <BalanceCard />
       <StatsCard
         title={`${periodLabel} Cash Inflow`}
         amount={periodIncome}

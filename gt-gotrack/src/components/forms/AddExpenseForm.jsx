@@ -4,7 +4,7 @@
  * Generates a unique transaction ID per entry. Dispatches ADD_EXPENSE to ExpenseContext on submit.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { ArrowDownCircle, ArrowUpCircle, Hash, RefreshCw, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
@@ -12,6 +12,7 @@ import { ArrowDownCircle, ArrowUpCircle, Hash, RefreshCw, CheckCircle, Loader2, 
 import { useExpenses } from '../../context/ExpenseContext';
 import { CATEGORIES, ROUTES } from '../../constants';
 import { generateTransactionId } from '../../utils/generateTransactionId';
+import { apiFetch } from '../../services/api';
 import { cn } from '../../utils/cn';
 import logger from '../../utils/logger';
 import { Input } from '../common/Input';
@@ -30,7 +31,7 @@ const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c.id, label: c.label })
  * @returns {JSX.Element}
  */
 export function AddExpenseForm() {
-  const { addExpense } = useExpenses();
+  const { addExpense, state: { expenses } } = useExpenses();
   const navigate = useNavigate();
 
   // ─── Form State ───────────────────────────────────────────────────────────
@@ -40,10 +41,18 @@ export function AddExpenseForm() {
   const [category, setCategory] = useState('');
   const [date, setDate] = useState(TODAY);
   const [note, setNote] = useState('');
+  const [openingBalance, setOpeningBalance] = useState('');
   const [txnId, setTxnId] = useState(() => generateTransactionId());
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Show opening balance field only when no transactions exist yet for the selected month
+  const selectedMonth = date ? date.slice(0, 7) : null; // YYYY-MM
+  const isFirstOfMonth = useMemo(() => {
+    if (!selectedMonth) return false;
+    return !expenses.some((e) => e.date?.startsWith(selectedMonth));
+  }, [expenses, selectedMonth]);
 
   // Regenerate txnId when date changes so the date portion stays accurate
   useEffect(() => {
@@ -98,6 +107,16 @@ export function AddExpenseForm() {
           type,
           category,
         });
+
+        // If an opening balance was provided for a new month, save it to DB
+        if (isFirstOfMonth && openingBalance !== '' && !isNaN(Number(openingBalance))) {
+          await apiFetch(`/statements/balances/${selectedMonth}`, {
+            method: 'PATCH',
+            body:   { opening_balance: parseFloat(Number(openingBalance).toFixed(2)) },
+          });
+          logger.info('[AddExpenseForm] Opening balance saved for', selectedMonth);
+        }
+
         logger.info('[AddExpenseForm] Transaction saved');
         setSubmitted(true);
         setTimeout(() => navigate(ROUTES.EXPENSES), 900);
@@ -119,6 +138,7 @@ export function AddExpenseForm() {
     setCategory('');
     setDate(TODAY);
     setNote('');
+    setOpeningBalance('');
     setTxnId(generateTransactionId());
     setErrors({});
     setSubmitted(false);
@@ -213,6 +233,21 @@ export function AddExpenseForm() {
         error={errors.category}
         required
       />
+
+      {/* ── Opening Balance (only shown for the first transaction of a month) ── */}
+      {isFirstOfMonth && (
+        <Input
+          id="opening-balance"
+          label="Opening Balance"
+          type="number"
+          placeholder="0.00"
+          value={openingBalance}
+          onChange={(e) => setOpeningBalance(e.target.value)}
+          min="0"
+          step="0.01"
+          helper="First transaction of this month — set your account balance at the start of the month (optional)"
+        />
+      )}
 
       {/* ── Date ── */}
       <Input
